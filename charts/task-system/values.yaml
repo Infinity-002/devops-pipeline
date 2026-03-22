@@ -15,6 +15,7 @@ api:
     tag: latest
   service:
     port: 8000
+    type: ClusterIP
 
 worker:
   replicaCount: 2
@@ -29,6 +30,8 @@ web:
     tag: latest
   service:
     port: 80
+    type: NodePort
+    nodePort: 30080
 
 config:
   redisUrl: redis://redis:6379/0

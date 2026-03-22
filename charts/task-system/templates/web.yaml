@@ -37,3 +37,7 @@ spec:
   ports:
     - port: {{ .Values.web.service.port }}
       targetPort: 80
+      {{- if eq .Values.web.service.type "NodePort" }}
+      nodePort: {{ .Values.web.service.nodePort }}
+      {{- end }}
+  type: {{ .Values.web.service.type }}

@@ -114,6 +114,15 @@ Or deploy with Helm:
 helm upgrade --install task-system ./charts/task-system -n task-system --create-namespace
 ```
 
+### Accessing The Kubernetes Deployment
+
+The Helm chart exposes the web application as a `NodePort` by default.
+On Docker Desktop Kubernetes, you can usually open:
+
+- `http://localhost:30080`
+
+The web container proxies API requests to the in-cluster API service, so you do not need a separate API port-forward just to use the UI.
+
 ## CI/CD
 
 The project now uses separate GitHub Actions workflows for CI and CD:
