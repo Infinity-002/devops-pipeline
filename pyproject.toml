@@ -1,0 +1,29 @@
+[project]
+name = "task-system-workspace"
+version = "0.1.0"
+description = "Workspace configuration for the event-driven task system demo."
+requires-python = ">=3.12"
+dependencies = []
+
+[tool.uv.workspace]
+members = [
+  "packages/common",
+  "services/api",
+  "services/worker",
+]
+
+[dependency-groups]
+dev = [
+  "pytest>=8.3.5",
+  "ruff>=0.11.0",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "N", "ASYNC"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

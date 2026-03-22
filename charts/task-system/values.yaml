@@ -1,0 +1,36 @@
+namespace: task-system
+
+image:
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+redis:
+  image: redis:7-alpine
+
+api:
+  replicaCount: 1
+  image:
+    repository: ghcr.io/example/task-system-api
+    tag: latest
+  service:
+    port: 8000
+
+worker:
+  replicaCount: 2
+  image:
+    repository: ghcr.io/example/task-system-worker
+    tag: latest
+
+web:
+  replicaCount: 1
+  image:
+    repository: ghcr.io/example/task-system-web
+    tag: latest
+  service:
+    port: 80
+
+config:
+  redisUrl: redis://redis:6379/0
+  corsOrigins: http://localhost:5173
+  rqQueueName: tasks

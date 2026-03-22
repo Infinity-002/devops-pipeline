@@ -1,0 +1,58 @@
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: task-system-redis
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: services/api/Dockerfile
+    container_name: task-system-api
+    env_file:
+      - .env
+    environment:
+      REDIS_URL: "${REDIS_URL:-redis://redis:6379/0}"
+      CORS_ORIGINS: "${CORS_ORIGINS:-http://localhost:5173}"
+    depends_on:
+      redis:
+        condition: service_healthy
+    ports:
+      - "${API_PORT:-8000}:8000"
+    healthcheck:
+      test: ["CMD", "uv", "run", "--package", "api-service", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/live')"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  worker:
+    build:
+      context: .
+      dockerfile: services/worker/Dockerfile
+    container_name: task-system-worker
+    env_file:
+      - .env
+    environment:
+      REDIS_URL: "${REDIS_URL:-redis://redis:6379/0}"
+      RQ_QUEUE_NAME: "${RQ_QUEUE_NAME:-tasks}"
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  web:
+    build:
+      context: .
+      dockerfile: web/Dockerfile
+    container_name: task-system-web
+    depends_on:
+      api:
+        condition: service_started
+    ports:
+      - "${WEB_PORT:-5173}:80"
+

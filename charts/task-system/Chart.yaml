@@ -1,0 +1,7 @@
+apiVersion: v2
+name: task-system
+description: Helm chart for the event-driven task processing demo
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+

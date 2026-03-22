@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: task-system-config
+  namespace: task-system
+data:
+  REDIS_URL: redis://redis:6379/0
+  CORS_ORIGINS: http://localhost:5173
+  RQ_QUEUE_NAME: tasks
+
