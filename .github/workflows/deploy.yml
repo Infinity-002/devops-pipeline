@@ -15,7 +15,6 @@ concurrency:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAMESPACE: ${{ github.repository_owner }}
   RELEASE_NAME: task-system
   KUBE_NAMESPACE: task-system
   GHCR_PULL_SECRET_NAME: ${{ vars.GHCR_PULL_SECRET_NAME }}
@@ -71,10 +70,15 @@ jobs:
     needs: validate
     outputs:
       image_tag: ${{ steps.image-tag.outputs.image_tag }}
+      image_namespace: ${{ steps.image-namespace.outputs.image_namespace }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Compute image namespace
+        id: image-namespace
+        run: echo "image_namespace=${GITHUB_REPOSITORY_OWNER,,}" >> "$GITHUB_OUTPUT"
 
       - name: Compute image tag
         id: image-tag
@@ -97,8 +101,8 @@ jobs:
           file: services/api/Dockerfile
           push: true
           tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/task-system-api:${{ steps.image-tag.outputs.image_tag }}
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/task-system-api:latest
+            ${{ env.REGISTRY }}/${{ steps.image-namespace.outputs.image_namespace }}/task-system-api:${{ steps.image-tag.outputs.image_tag }}
+            ${{ env.REGISTRY }}/${{ steps.image-namespace.outputs.image_namespace }}/task-system-api:latest
 
       - name: Build and push worker image
         uses: docker/build-push-action@v6
@@ -107,8 +111,8 @@ jobs:
           file: services/worker/Dockerfile
           push: true
           tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/task-system-worker:${{ steps.image-tag.outputs.image_tag }}
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/task-system-worker:latest
+            ${{ env.REGISTRY }}/${{ steps.image-namespace.outputs.image_namespace }}/task-system-worker:${{ steps.image-tag.outputs.image_tag }}
+            ${{ env.REGISTRY }}/${{ steps.image-namespace.outputs.image_namespace }}/task-system-worker:latest
 
       - name: Build and push web image
         uses: docker/build-push-action@v6
@@ -117,11 +121,11 @@ jobs:
           file: web/Dockerfile
           push: true
           tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/task-system-web:${{ steps.image-tag.outputs.image_tag }}
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAMESPACE }}/task-system-web:latest
+            ${{ env.REGISTRY }}/${{ steps.image-namespace.outputs.image_namespace }}/task-system-web:${{ steps.image-tag.outputs.image_tag }}
+            ${{ env.REGISTRY }}/${{ steps.image-namespace.outputs.image_namespace }}/task-system-web:latest
 
   deploy:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     needs: build-and-push
     environment: production
 
@@ -135,13 +139,22 @@ jobs:
       - name: Set up kubectl
         uses: azure/setup-kubectl@v4
 
-      - name: Configure kubeconfig
+      - name: Configure kubeconfig from secret when provided
         env:
           KUBE_CONFIG_DATA: ${{ secrets.KUBE_CONFIG_DATA }}
         run: |
+          if [ -z "${KUBE_CONFIG_DATA}" ]; then
+            echo "KUBE_CONFIG_DATA not set; using runner's existing kubectl context."
+            exit 0
+          fi
           mkdir -p "${HOME}/.kube"
           echo "${KUBE_CONFIG_DATA}" | base64 --decode > "${HOME}/.kube/config"
           chmod 600 "${HOME}/.kube/config"
+
+      - name: Verify cluster access
+        run: |
+          kubectl config current-context
+          kubectl get nodes
 
       - name: Create namespace if needed
         run: kubectl create namespace "${KUBE_NAMESPACE}" --dry-run=client -o yaml | kubectl apply -f -
@@ -157,10 +170,10 @@ jobs:
             --namespace "${KUBE_NAMESPACE}" \
             --create-namespace \
             --set namespace="${KUBE_NAMESPACE}" \
-            --set api.image.repository="${REGISTRY}/${IMAGE_NAMESPACE}/task-system-api" \
+            --set api.image.repository="${REGISTRY}/${{ needs.build-and-push.outputs.image_namespace }}/task-system-api" \
             --set api.image.tag="${{ needs.build-and-push.outputs.image_tag }}" \
-            --set worker.image.repository="${REGISTRY}/${IMAGE_NAMESPACE}/task-system-worker" \
+            --set worker.image.repository="${REGISTRY}/${{ needs.build-and-push.outputs.image_namespace }}/task-system-worker" \
             --set worker.image.tag="${{ needs.build-and-push.outputs.image_tag }}" \
-            --set web.image.repository="${REGISTRY}/${IMAGE_NAMESPACE}/task-system-web" \
+            --set web.image.repository="${REGISTRY}/${{ needs.build-and-push.outputs.image_namespace }}/task-system-web" \
             --set web.image.tag="${{ needs.build-and-push.outputs.image_tag }}" \
             ${EXTRA_HELM_ARGS}
