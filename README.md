@@ -9,6 +9,8 @@ This project demonstrates an event-driven task processing system built with:
 - `Kubernetes + Helm` for container orchestration
 - `GitHub Actions` for CI automation
 
+The demo focuses on two realistic asynchronous workloads: image processing and CSV analysis.
+
 ## Architecture
 
 1. The web app submits a task to the API.
