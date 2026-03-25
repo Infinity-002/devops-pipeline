@@ -13,6 +13,14 @@ class TaskType(StrEnum):
     CSV_ANALYSIS = "csv_analysis"
 
 
+class ImageTransform(StrEnum):
+    THUMBNAIL = "thumbnail"
+    GRAYSCALE = "grayscale"
+    SEPIA = "sepia"
+    BLUR = "blur"
+    EDGE_ENHANCE = "edge_enhance"
+
+
 class TaskStatus(StrEnum):
     QUEUED = "queued"
     RUNNING = "running"
@@ -23,6 +31,21 @@ class TaskStatus(StrEnum):
 class ImagePayload(BaseModel):
     filename: str = Field(min_length=1, max_length=255)
     image_data_url: str = Field(min_length=32, max_length=12_000_000)
+    transforms: list[ImageTransform] = Field(
+        default_factory=lambda: [
+            ImageTransform.THUMBNAIL,
+            ImageTransform.GRAYSCALE,
+            ImageTransform.SEPIA,
+        ]
+    )
+
+    @field_validator("transforms")
+    @classmethod
+    def ensure_unique_transforms(cls, value: list[ImageTransform]) -> list[ImageTransform]:
+        unique = list(dict.fromkeys(value))
+        if not unique:
+            raise ValueError("At least one image transform must be selected")
+        return unique
 
 
 class CsvPayload(BaseModel):

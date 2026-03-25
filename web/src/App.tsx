@@ -1,13 +1,19 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { ChangeEvent, FormEvent, startTransition, useEffect, useRef, useState } from "react";
 
 import { createTask, listTasks } from "./api";
-import type { Task, TaskType } from "./types";
+import type {
+  CsvAnalysisResult,
+  ImageProcessingResult,
+  ImageTransform,
+  Task,
+  TaskType,
+} from "./types";
 
 const TASK_OPTIONS: Array<{ value: TaskType; label: string; help: string }> = [
   {
     value: "image_processing",
     label: "Image Processing",
-    help: "Generate a thumbnail, grayscale preview, and basic image metadata.",
+    help: "Upload an image, choose transforms, and review polished visual outputs.",
   },
   {
     value: "csv_analysis",
@@ -16,40 +22,146 @@ const TASK_OPTIONS: Array<{ value: TaskType; label: string; help: string }> = [
   },
 ];
 
+const IMAGE_TRANSFORM_OPTIONS: Array<{
+  value: ImageTransform;
+  label: string;
+  help: string;
+}> = [
+  {
+    value: "thumbnail",
+    label: "Thumbnail",
+    help: "Generate a compact preview card.",
+  },
+  {
+    value: "grayscale",
+    label: "Grayscale",
+    help: "Highlight contrast and tone.",
+  },
+  {
+    value: "sepia",
+    label: "Sepia",
+    help: "Apply a warm archival treatment.",
+  },
+  {
+    value: "blur",
+    label: "Blur",
+    help: "Create a softened visual pass.",
+  },
+  {
+    value: "edge_enhance",
+    label: "Edge Enhance",
+    help: "Bring out edges and structure.",
+  },
+];
+
+const MAX_UPLOAD_BYTES = 8 * 1024 * 1024;
+const MAX_DIMENSION = 1600;
+const OUTPUT_QUALITY = 0.82;
+
+type ImageDraft = {
+  filename: string;
+  mimeType: string;
+  dataUrl: string;
+  previewUrl: string;
+  width: number;
+  height: number;
+  originalSizeBytes: number;
+  optimizedSizeBytes: number;
+};
+
 export function App() {
   const [taskType, setTaskType] = useState<TaskType>("image_processing");
-  const [imageName, setImageName] = useState("sample-image.png");
-  const [imageDataUrl, setImageDataUrl] = useState<string | null>(null);
-  const [csvFilename] = useState("sales-report.csv");
+  const [csvFilename, setCsvFilename] = useState("sales-report.csv");
   const [csvText, setCsvText] = useState(
     "name,amount,region\nAsha,120,North\nRavi,95,South\nMina,210,West\nKabir,,East",
   );
+  const [selectedTransforms, setSelectedTransforms] = useState<ImageTransform[]>([
+    "thumbnail",
+    "grayscale",
+    "sepia",
+  ]);
+  const [imageDraft, setImageDraft] = useState<ImageDraft | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [refreshError, setRefreshError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  async function refreshTasks() {
+  async function refreshTasks(silently = false) {
     try {
       const nextTasks = await listTasks();
-      setTasks(nextTasks);
-    } catch (refreshError) {
-      setError(refreshError instanceof Error ? refreshError.message : "Unable to load tasks");
+      startTransition(() => {
+        setTasks(nextTasks);
+      });
+      if (silently) {
+        setRefreshError(null);
+      }
+    } catch (refreshTaskError) {
+      const message = refreshTaskError instanceof Error ? refreshTaskError.message : "Unable to load tasks";
+      if (silently) {
+        setRefreshError(message);
+      } else {
+        setError(message);
+      }
     }
   }
 
   useEffect(() => {
     void refreshTasks();
     const timer = window.setInterval(() => {
-      void refreshTasks();
+      void refreshTasks(true);
     }, 3000);
 
     return () => window.clearInterval(timer);
   }, []);
 
-  const selectedTask = useMemo(
-    () => TASK_OPTIONS.find((option) => option.value === taskType) ?? TASK_OPTIONS[0],
-    [taskType],
-  );
+  async function onSelectImage(file: File | null) {
+    setError(null);
+
+    if (!file) {
+      setImageDraft(null);
+      return;
+    }
+
+    if (!file.type.startsWith("image/")) {
+      setError("Please choose a PNG, JPEG, or WebP image.");
+      return;
+    }
+
+    if (file.size > MAX_UPLOAD_BYTES) {
+      setError(`Image is too large. Please choose a file under ${formatBytes(MAX_UPLOAD_BYTES)}.`);
+      return;
+    }
+
+    setIsUploadingImage(true);
+    try {
+      const optimized = await optimizeImage(file);
+      setImageDraft(optimized);
+    } catch (imageError) {
+      setImageDraft(null);
+      setError(imageError instanceof Error ? imageError.message : "Unable to prepare image");
+    } finally {
+      setIsUploadingImage(false);
+    }
+  }
+
+  async function onFileInputChange(event: ChangeEvent<HTMLInputElement>) {
+    await onSelectImage(event.target.files?.[0] ?? null);
+  }
+
+  function toggleTransform(transform: ImageTransform) {
+    setSelectedTransforms((current) => {
+      if (current.includes(transform)) {
+        if (current.length === 1) {
+          return current;
+        }
+        return current.filter((item) => item !== transform);
+      }
+      return [...current, transform];
+    });
+  }
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -60,16 +172,17 @@ export function App() {
       const payload =
         taskType === "image_processing"
           ? {
-            filename: imageName,
-            image_data_url: imageDataUrl,
-          }
+              filename: imageDraft?.filename ?? "",
+              image_data_url: imageDraft?.dataUrl ?? "",
+              transforms: selectedTransforms,
+            }
           : {
-            filename: csvFilename,
-            csv_text: csvText,
-          };
+              filename: csvFilename,
+              csv_text: csvText,
+            };
 
-      if (taskType === "image_processing" && !imageDataUrl) {
-        throw new Error("Please choose an image file before submitting");
+      if (taskType === "image_processing" && !imageDraft) {
+        throw new Error("Choose an image before starting the task.");
       }
 
       await createTask(taskType, payload);
@@ -85,16 +198,25 @@ export function App() {
     <div className="page-shell">
       <header className="hero-card">
         <div className="eyebrow">Cloud Processor</div>
-        <h1>Effortless file processing.</h1>
+        <h1>Smarter file processing with clearer feedback.</h1>
         <p>
-          Upload an image or CSV and get instant results.
+          Prepare an image or CSV, submit it into the task pipeline, and review rich results as the
+          workers complete each job.
         </p>
       </header>
 
       <main className="panel form-panel">
         <div className="panel-header">
-          <h2>New Task</h2>
-          <span>{selectedTask.help}</span>
+          <div>
+            <h2>New Task</h2>
+            <span>
+              {TASK_OPTIONS.find((option) => option.value === taskType)?.help}
+            </span>
+          </div>
+          <div className="poll-indicator">
+            <span className="pulse-dot" />
+            Polling every 3s
+          </div>
         </div>
 
         <form onSubmit={onSubmit}>
@@ -111,29 +233,116 @@ export function App() {
 
           {taskType === "image_processing" ? (
             <>
-              <label>
-                Image File
-                <input
-                  type="file"
-                  accept="image/png,image/jpeg,image/webp"
-                  onChange={async (event) => {
-                    const file = event.target.files?.[0];
-                    if (!file) {
-                      setImageDataUrl(null);
-                      return;
-                    }
+              <input
+                ref={fileInputRef}
+                className="visually-hidden"
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                onChange={onFileInputChange}
+              />
 
-                    setImageName(file.name);
-                    const dataUrl = await readFileAsDataUrl(file);
-                    setImageDataUrl(dataUrl);
-                  }}
-                />
-              </label>
+              <div
+                className={`dropzone ${isDragging ? "dropzone-active" : ""} ${imageDraft ? "dropzone-ready" : ""}`}
+                onClick={() => fileInputRef.current?.click()}
+                onDragEnter={(event) => {
+                  event.preventDefault();
+                  setIsDragging(true);
+                }}
+                onDragOver={(event) => {
+                  event.preventDefault();
+                  setIsDragging(true);
+                }}
+                onDragLeave={(event) => {
+                  event.preventDefault();
+                  setIsDragging(false);
+                }}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  setIsDragging(false);
+                  void onSelectImage(event.dataTransfer.files?.[0] ?? null);
+                }}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    fileInputRef.current?.click();
+                  }
+                }}
+              >
+                <div className="dropzone-copy">
+                  <span className="dropzone-title">Drop an image here or click to browse</span>
+                  <span className="dropzone-subtitle">
+                    PNG, JPEG, or WebP up to {formatBytes(MAX_UPLOAD_BYTES)}. Large images are compressed
+                    in the browser before upload.
+                  </span>
+                </div>
+                <button type="button" className="secondary-button">
+                  Choose File
+                </button>
+              </div>
 
-              {imageDataUrl ? <img className="preview-image" src={imageDataUrl} alt="Selected preview" /> : null}
+              {isUploadingImage ? <p className="info-text">Optimizing image for upload...</p> : null}
+
+              {imageDraft ? (
+                <section className="image-draft-card">
+                  <div className="image-draft-preview">
+                    <img className="preview-image" src={imageDraft.previewUrl} alt="Selected preview" />
+                  </div>
+                  <div className="image-draft-meta">
+                    <div className="section-title">Preview Details</div>
+                    <div className="stats-grid">
+                      <div className="stats-item">
+                        <span className="stats-label">File</span>
+                        <span className="stats-value">{imageDraft.filename}</span>
+                      </div>
+                      <div className="stats-item">
+                        <span className="stats-label">Type</span>
+                        <span className="stats-value">{imageDraft.mimeType}</span>
+                      </div>
+                      <div className="stats-item">
+                        <span className="stats-label">Dimensions</span>
+                        <span className="stats-value">
+                          {imageDraft.width} × {imageDraft.height}
+                        </span>
+                      </div>
+                      <div className="stats-item">
+                        <span className="stats-label">Compression</span>
+                        <span className="stats-value">
+                          {formatBytes(imageDraft.originalSizeBytes)} to {formatBytes(imageDraft.optimizedSizeBytes)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+              ) : null}
+
+              <fieldset className="transform-picker">
+                <legend>Processing Modes</legend>
+                <div className="transform-grid">
+                  {IMAGE_TRANSFORM_OPTIONS.map((option) => {
+                    const selected = selectedTransforms.includes(option.value);
+                    return (
+                      <label key={option.value} className={`transform-card ${selected ? "transform-selected" : ""}`}>
+                        <input
+                          type="checkbox"
+                          checked={selected}
+                          onChange={() => toggleTransform(option.value)}
+                        />
+                        <span className="transform-label">{option.label}</span>
+                        <span className="transform-help">{option.help}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </fieldset>
             </>
           ) : (
             <>
+              <label>
+                CSV Filename
+                <input value={csvFilename} onChange={(event) => setCsvFilename(event.target.value)} />
+              </label>
               <label>
                 CSV Data
                 <textarea
@@ -146,11 +355,12 @@ export function App() {
             </>
           )}
 
-          <button type="submit" disabled={isSubmitting}>
-            {isSubmitting ? "Processing..." : "Run Task"}
+          <button type="submit" disabled={isSubmitting || isUploadingImage}>
+            {isSubmitting ? "Submitting Task..." : "Run Task"}
           </button>
 
           {error ? <p className="error-text">{error}</p> : null}
+          {refreshError ? <p className="info-text">{refreshError}</p> : null}
         </form>
       </main>
 
@@ -165,111 +375,14 @@ export function App() {
                 <code>{task.task_type.replace("_", " ")}</code>
               </div>
 
+              <p className="task-id">{task.id}</p>
+
               {task.result ? (
                 <div className="task-block">
                   {isImageProcessingResult(task.result) ? (
-                    <div className="image-result-detail">
-                      <div className="section-title">Original Metadata</div>
-                      <div className="stats-grid">
-                        <div className="stats-item">
-                          <span className="stats-label">Format</span>
-                          <span className="stats-value">{task.result.original.format}</span>
-                        </div>
-                        <div className="stats-item">
-                          <span className="stats-label">Resolution</span>
-                          <span className="stats-value">
-                            {task.result.original.width} × {task.result.original.height}
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="section-title">Processed Previews</div>
-                      <div className="result-media">
-                        <div className="result-item">
-                          <span className="badge">Thumbnail</span>
-                          <img
-                            className="result-image"
-                            src={task.result.thumbnail.image_data_url}
-                            alt="Thumbnail"
-                          />
-                        </div>
-                        <div className="result-item">
-                          <span className="badge">Grayscale</span>
-                          <img
-                            className="result-image"
-                            src={task.result.grayscale_preview.image_data_url}
-                            alt="Grayscale"
-                          />
-                        </div>
-                      </div>
-                    </div>
+                    <ImageResultCard task={task} />
                   ) : isCsvAnalysisResult(task.result) ? (
-                    <div className="csv-result-detail">
-                      <div className="section-title">Dataset Overview</div>
-                      <div className="stats-grid">
-                        <div className="stats-item">
-                          <span className="stats-label">Rows</span>
-                          <span className="stats-value">{task.result.row_count}</span>
-                        </div>
-                        <div className="stats-item">
-                          <span className="stats-label">Columns</span>
-                          <span className="stats-value">{task.result.column_count}</span>
-                        </div>
-                      </div>
-
-                      {Object.keys(task.result.numeric_summary).length > 0 && (
-                        <>
-                          <div className="section-title">Numeric Summary</div>
-                          <div className="data-table-container">
-                            <table className="data-table">
-                              <thead>
-                                <tr>
-                                  <th>Column</th>
-                                  <th>Min</th>
-                                  <th>Max</th>
-                                  <th>Avg</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {Object.entries(task.result.numeric_summary).map(([col, stats]) => (
-                                  <tr key={col}>
-                                    <td>{col}</td>
-                                    <td>{stats.min}</td>
-                                    <td>{stats.max}</td>
-                                    <td>{stats.average}</td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        </>
-                      )}
-
-                      <div className="section-title">Sample Data</div>
-                      <div className="data-table-container">
-                        <table className="data-table">
-                          <thead>
-                            <tr>
-                              {task.result.columns.map((col: string) => (
-                                <th key={col}>{col}</th>
-                              ))}
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {task.result.sample_rows.map((row, i) => {
-                              const res = task.result;
-                              return (
-                                <tr key={i}>
-                                  {isCsvAnalysisResult(res) && res.columns.map((col: string) => (
-                                    <td key={col}>{String(row[col] ?? "-")}</td>
-                                  ))}
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
+                    <CsvResultCard result={task.result} />
                   ) : (
                     <div className="generic-result">
                       <strong>Analysis Result</strong>
@@ -292,6 +405,176 @@ export function App() {
   );
 }
 
+function ImageResultCard({ task }: { task: Task }) {
+  const result = task.result as unknown as ImageProcessingResult;
+
+  return (
+    <div className="image-result-detail">
+      <div className="result-header">
+        <div>
+          <div className="section-title">Original Asset</div>
+          <div className="result-caption">{result.filename}</div>
+        </div>
+        <div className="badge-row">
+          {result.transforms.map((transform) => (
+            <span key={transform} className="badge">
+              {IMAGE_TRANSFORM_OPTIONS.find((option) => option.value === transform)?.label ?? transform}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      <div className="image-comparison">
+        <div className="result-item result-item-featured">
+          <span className="badge badge-muted">Original</span>
+          <img className="result-image" src={result.original.image_data_url} alt="Original upload" />
+        </div>
+        <div className="stats-grid">
+          <div className="stats-item">
+            <span className="stats-label">Format</span>
+            <span className="stats-value">{result.original.format}</span>
+          </div>
+          <div className="stats-item">
+            <span className="stats-label">Resolution</span>
+            <span className="stats-value">
+              {result.original.width} × {result.original.height}
+            </span>
+          </div>
+          <div className="stats-item">
+            <span className="stats-label">Size</span>
+            <span className="stats-value">{formatBytes(result.original.size_bytes)}</span>
+          </div>
+          <div className="stats-item">
+            <span className="stats-label">Aspect</span>
+            <span className="stats-value">{result.original.aspect_ratio ?? "-"}</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="section-title">Processed Outputs</div>
+      <div className="result-media">
+        {result.outputs.map((output) => (
+          <div key={output.key} className="result-item">
+            <div className="result-item-header">
+              <span className="badge">{output.label}</span>
+              <a className="download-link" href={output.image_data_url} download={`${task.id}-${output.key}.png`}>
+                Download
+              </a>
+            </div>
+            <img className="result-image" src={output.image_data_url} alt={output.label} />
+            <p className="result-description">{output.description}</p>
+            <p className="result-caption">
+              {output.width} × {output.height}
+            </p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function CsvResultCard({ result }: { result: CsvAnalysisResult }) {
+  return (
+    <div className="csv-result-detail">
+      <div className="section-title">Dataset Overview</div>
+      <div className="stats-grid">
+        <div className="stats-item">
+          <span className="stats-label">Rows</span>
+          <span className="stats-value">{result.row_count}</span>
+        </div>
+        <div className="stats-item">
+          <span className="stats-label">Columns</span>
+          <span className="stats-value">{result.column_count}</span>
+        </div>
+      </div>
+
+      {Object.keys(result.numeric_summary).length > 0 ? (
+        <>
+          <div className="section-title">Numeric Summary</div>
+          <div className="data-table-container">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Column</th>
+                  <th>Min</th>
+                  <th>Max</th>
+                  <th>Avg</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Object.entries(result.numeric_summary).map(([column, stats]) => (
+                  <tr key={column}>
+                    <td>{column}</td>
+                    <td>{stats.min}</td>
+                    <td>{stats.max}</td>
+                    <td>{stats.average}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      ) : null}
+
+      <div className="section-title">Sample Data</div>
+      <div className="data-table-container">
+        <table className="data-table">
+          <thead>
+            <tr>
+              {result.columns.map((column) => (
+                <th key={column}>{column}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {result.sample_rows.map((row, index) => (
+              <tr key={index}>
+                {result.columns.map((column) => (
+                  <td key={column}>{String(row[column] ?? "-")}</td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+async function optimizeImage(file: File): Promise<ImageDraft> {
+  const sourceDataUrl = await readFileAsDataUrl(file);
+  const image = await loadImage(sourceDataUrl);
+
+  const scale = Math.min(1, MAX_DIMENSION / Math.max(image.width, image.height));
+  const width = Math.max(1, Math.round(image.width * scale));
+  const height = Math.max(1, Math.round(image.height * scale));
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+
+  const context = canvas.getContext("2d");
+  if (!context) {
+    throw new Error("Your browser could not prepare the image for upload.");
+  }
+
+  context.drawImage(image, 0, 0, width, height);
+
+  const outputType = file.type === "image/png" ? "image/png" : "image/jpeg";
+  const optimizedDataUrl = canvas.toDataURL(outputType, OUTPUT_QUALITY);
+  const optimizedSizeBytes = estimateDataUrlBytes(optimizedDataUrl);
+
+  return {
+    filename: file.name,
+    mimeType: file.type || outputType,
+    dataUrl: optimizedDataUrl,
+    previewUrl: optimizedDataUrl,
+    width,
+    height,
+    originalSizeBytes: file.size,
+    optimizedSizeBytes,
+  };
+}
+
 function readFileAsDataUrl(file: File) {
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
@@ -307,40 +590,55 @@ function readFileAsDataUrl(file: File) {
   });
 }
 
-function isImageProcessingResult(
-  result: Record<string, unknown> | null,
-): result is {
-  original: { format: string; width: number; height: number };
-  thumbnail: { image_data_url: string };
-  grayscale_preview: { image_data_url: string };
-} {
+function loadImage(dataUrl: string) {
+  return new Promise<HTMLImageElement>((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error("Unable to load image"));
+    image.src = dataUrl;
+  });
+}
+
+function estimateDataUrlBytes(dataUrl: string) {
+  const [, encoded = ""] = dataUrl.split(",", 2);
+  const padding = encoded.endsWith("==") ? 2 : encoded.endsWith("=") ? 1 : 0;
+  return Math.round((encoded.length * 3) / 4) - padding;
+}
+
+function formatBytes(value: number) {
+  if (value < 1024) {
+    return `${value} B`;
+  }
+  if (value < 1024 * 1024) {
+    return `${(value / 1024).toFixed(1)} KB`;
+  }
+  return `${(value / (1024 * 1024)).toFixed(2)} MB`;
+}
+
+function isImageProcessingResult(result: unknown): result is ImageProcessingResult {
   return (
+    typeof result === "object" &&
     result !== null &&
-    typeof result.original === "object" &&
-    result.original !== null &&
-    typeof result.thumbnail === "object" &&
-    result.thumbnail !== null &&
-    typeof result.grayscale_preview === "object" &&
-    result.grayscale_preview !== null
+    "original" in result &&
+    "outputs" in result &&
+    Array.isArray(result.outputs)
   );
 }
 
-function isCsvAnalysisResult(
-  result: Record<string, unknown> | null,
-): result is {
-  row_count: number;
-  column_count: number;
-  columns: string[];
-  numeric_summary: Record<string, { min: number; max: number; average: number }>;
-  sample_rows: Array<Record<string, unknown>>;
-} {
+function isCsvAnalysisResult(result: unknown): result is CsvAnalysisResult {
   return (
+    typeof result === "object" &&
     result !== null &&
+    "row_count" in result &&
     typeof result.row_count === "number" &&
+    "column_count" in result &&
     typeof result.column_count === "number" &&
+    "columns" in result &&
     Array.isArray(result.columns) &&
+    "numeric_summary" in result &&
     typeof result.numeric_summary === "object" &&
     result.numeric_summary !== null &&
+    "sample_rows" in result &&
     Array.isArray(result.sample_rows)
   );
 }

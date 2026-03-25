@@ -6,10 +6,16 @@ import io
 import logging
 from typing import Any
 
-from PIL import Image, UnidentifiedImageError
+from PIL import Image, ImageFilter, UnidentifiedImageError
 
 from task_system_common.queue import get_redis_connection
-from task_system_common.schemas import CsvPayload, ImagePayload, TaskStatus, TaskType
+from task_system_common.schemas import (
+    CsvPayload,
+    ImagePayload,
+    ImageTransform,
+    TaskStatus,
+    TaskType,
+)
 from task_system_common.settings import get_settings
 from task_system_common.store import TaskStore
 
@@ -60,14 +66,24 @@ def _process_image(payload: ImagePayload) -> dict[str, Any]:
     try:
         with Image.open(io.BytesIO(image_bytes)) as source_image:
             source_image.load()
-            original_width, original_height = source_image.size
+            normalized_image = source_image.convert("RGB")
+            original_width, original_height = normalized_image.size
             source_format = source_image.format or "PNG"
+            aspect_ratio = round(original_width / original_height, 3) if original_height else None
 
-            thumbnail = source_image.copy()
-            thumbnail.thumbnail((320, 320))
-
-            grayscale = source_image.convert("L").convert("RGB")
-            grayscale.thumbnail((320, 320))
+            outputs = []
+            for transform in payload.transforms:
+                image = _apply_transform(normalized_image, transform)
+                outputs.append(
+                    {
+                        "key": transform.value,
+                        "label": _transform_label(transform),
+                        "description": _transform_description(transform),
+                        "width": image.width,
+                        "height": image.height,
+                        "image_data_url": _image_to_data_url(image),
+                    }
+                )
 
             return {
                 "filename": payload.filename,
@@ -75,17 +91,12 @@ def _process_image(payload: ImagePayload) -> dict[str, Any]:
                     "format": source_format,
                     "width": original_width,
                     "height": original_height,
+                    "size_bytes": len(image_bytes),
+                    "aspect_ratio": aspect_ratio,
+                    "image_data_url": _image_to_data_url(_preview_image(normalized_image)),
                 },
-                "thumbnail": {
-                    "width": thumbnail.width,
-                    "height": thumbnail.height,
-                    "image_data_url": _image_to_data_url(thumbnail),
-                },
-                "grayscale_preview": {
-                    "width": grayscale.width,
-                    "height": grayscale.height,
-                    "image_data_url": _image_to_data_url(grayscale),
-                },
+                "transforms": [transform.value for transform in payload.transforms],
+                "outputs": outputs,
             }
     except UnidentifiedImageError as exc:
         raise ValueError("Uploaded file is not a supported image") from exc
@@ -144,3 +155,69 @@ def _image_to_data_url(image: Image.Image) -> str:
     image.save(buffer, format="PNG")
     encoded = base64.b64encode(buffer.getvalue()).decode("utf-8")
     return f"data:image/png;base64,{encoded}"
+
+
+def _preview_image(image: Image.Image) -> Image.Image:
+    preview = image.copy()
+    preview.thumbnail((640, 640))
+    return preview
+
+
+def _apply_transform(image: Image.Image, transform: ImageTransform) -> Image.Image:
+    if transform == ImageTransform.THUMBNAIL:
+        preview = image.copy()
+        preview.thumbnail((320, 320))
+        return preview
+
+    if transform == ImageTransform.GRAYSCALE:
+        preview = image.convert("L").convert("RGB")
+        preview.thumbnail((320, 320))
+        return preview
+
+    if transform == ImageTransform.SEPIA:
+        sepia = image.copy()
+        sepia.thumbnail((320, 320))
+        pixels = sepia.load()
+        for y in range(sepia.height):
+            for x in range(sepia.width):
+                red, green, blue = pixels[x, y]
+                pixels[x, y] = (
+                    min(int((red * 0.393) + (green * 0.769) + (blue * 0.189)), 255),
+                    min(int((red * 0.349) + (green * 0.686) + (blue * 0.168)), 255),
+                    min(int((red * 0.272) + (green * 0.534) + (blue * 0.131)), 255),
+                )
+        return sepia
+
+    if transform == ImageTransform.BLUR:
+        preview = image.copy()
+        preview.thumbnail((320, 320))
+        return preview.filter(ImageFilter.GaussianBlur(radius=3))
+
+    if transform == ImageTransform.EDGE_ENHANCE:
+        preview = image.copy()
+        preview.thumbnail((320, 320))
+        return preview.filter(ImageFilter.EDGE_ENHANCE_MORE)
+
+    raise ValueError(f"Unsupported image transform: {transform}")
+
+
+def _transform_label(transform: ImageTransform) -> str:
+    labels = {
+        ImageTransform.THUMBNAIL: "Thumbnail",
+        ImageTransform.GRAYSCALE: "Grayscale",
+        ImageTransform.SEPIA: "Sepia",
+        ImageTransform.BLUR: "Blur",
+        ImageTransform.EDGE_ENHANCE: "Edge Enhance",
+    }
+    return labels[transform]
+
+
+def _transform_description(transform: ImageTransform) -> str:
+    descriptions = {
+        ImageTransform.THUMBNAIL: "Resized preview optimized for quick scanning.",
+        ImageTransform.GRAYSCALE: "Monochrome treatment that highlights tone and contrast.",
+        ImageTransform.SEPIA: "Warm archival-style grade for a classic look.",
+        ImageTransform.BLUR: "Softened version using a Gaussian blur.",
+        ImageTransform.EDGE_ENHANCE: "Sharper edge-focused version for structure and detail.",
+    }
+    return descriptions[transform]

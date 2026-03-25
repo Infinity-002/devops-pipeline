@@ -15,7 +15,7 @@ export async function createTask(taskType: TaskType, payload: Record<string, unk
   });
 
   if (!response.ok) {
-    throw new Error("Failed to create task");
+    throw new Error(await getErrorMessage(response, "Failed to create task"));
   }
 
   return (await response.json()) as CreateTaskResponse;
@@ -24,7 +24,31 @@ export async function createTask(taskType: TaskType, payload: Record<string, unk
 export async function listTasks() {
   const response = await fetch(`${API_BASE_URL}/api/v1/tasks`);
   if (!response.ok) {
-    throw new Error("Failed to load tasks");
+    throw new Error(await getErrorMessage(response, "Failed to load tasks"));
   }
   return (await response.json()) as Task[];
+}
+
+async function getErrorMessage(response: Response, fallback: string) {
+  try {
+    const contentType = response.headers.get("content-type") ?? "";
+    if (contentType.includes("application/json")) {
+      const json = (await response.json()) as { detail?: string; message?: string };
+      if (json.detail) {
+        return `${fallback}: ${json.detail}`;
+      }
+      if (json.message) {
+        return `${fallback}: ${json.message}`;
+      }
+    } else {
+      const text = (await response.text()).trim();
+      if (text) {
+        return `${fallback}: ${text}`;
+      }
+    }
+  } catch {
+    return `${fallback} (${response.status})`;
+  }
+
+  return `${fallback} (${response.status})`;
 }

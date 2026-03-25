@@ -98,6 +98,8 @@ def test_process_image_task(monkeypatch):
     updated = store.get(task.id)
 
     assert result["original"]["width"] == 32
-    assert result["thumbnail"]["image_data_url"].startswith("data:image/png;base64,")
-    assert result["grayscale_preview"]["image_data_url"].startswith("data:image/png;base64,")
+    assert result["original"]["image_data_url"].startswith("data:image/png;base64,")
+    assert result["transforms"] == ["thumbnail", "grayscale", "sepia"]
+    assert len(result["outputs"]) == 3
+    assert result["outputs"][0]["image_data_url"].startswith("data:image/png;base64,")
     assert updated.status == TaskStatus.COMPLETED
