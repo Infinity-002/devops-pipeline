@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import pytest
 from pydantic import ValidationError
-
 from task_system_common.schemas import CreateTaskRequest, ImagePayload, TaskType
 
 

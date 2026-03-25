@@ -1,11 +1,10 @@
 from __future__ import annotations
 
+from api_service.dependencies import get_redis, get_task_queue
+from api_service.main import app
 from fastapi.testclient import TestClient
 from task_system_common.schemas import TaskRecord, TaskType
 from task_system_common.store import TaskStore
-
-from api_service.dependencies import get_redis, get_task_queue
-from api_service.main import app
 
 
 def test_create_task_enqueues_job(fake_redis, fake_queue, sample_image_data_url):
