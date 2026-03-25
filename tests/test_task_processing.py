@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import base64
 import io
 
@@ -7,36 +9,7 @@ from task_system_common.store import TaskStore
 from task_system_common.tasks import process_task
 
 
-class FakeRedis:
-    def __init__(self):
-        self.values: dict[str, str] = {}
-        self.lists: dict[str, list[str]] = {}
-
-    def set(self, key: str, value: str) -> None:
-        self.values[key] = value
-
-    def get(self, key: str) -> str | None:
-        return self.values.get(key)
-
-    def lpush(self, key: str, value: str) -> None:
-        self.lists.setdefault(key, []).insert(0, value)
-
-    def ltrim(self, key: str, start: int, end: int) -> None:
-        items = self.lists.get(key, [])
-        if end == -1:
-            self.lists[key] = items[start:]
-        else:
-            self.lists[key] = items[start : end + 1]
-
-    def lrange(self, key: str, start: int, end: int) -> list[str]:
-        items = self.lists.get(key, [])
-        if end == -1:
-            return items[start:]
-        return items[start : end + 1]
-
-
-def test_store_round_trip(monkeypatch):
-    fake_redis = FakeRedis()
+def test_store_round_trip(fake_redis):
     store = TaskStore(fake_redis)  # type: ignore[arg-type]
 
     task = TaskRecord(
@@ -51,8 +24,7 @@ def test_store_round_trip(monkeypatch):
     assert loaded.status == TaskStatus.QUEUED
 
 
-def test_process_task_updates_status(monkeypatch):
-    fake_redis = FakeRedis()
+def test_process_task_updates_status(monkeypatch, fake_redis):
     store = TaskStore(fake_redis)  # type: ignore[arg-type]
     task = TaskRecord(
         task_type=TaskType.CSV_ANALYSIS,
@@ -75,8 +47,7 @@ def test_process_task_updates_status(monkeypatch):
     assert updated.result == result
 
 
-def test_process_image_task(monkeypatch):
-    fake_redis = FakeRedis()
+def test_process_image_task(monkeypatch, fake_redis):
     store = TaskStore(fake_redis)  # type: ignore[arg-type]
 
     buffer = io.BytesIO()
@@ -100,6 +71,33 @@ def test_process_image_task(monkeypatch):
     assert result["original"]["width"] == 32
     assert result["original"]["image_data_url"].startswith("data:image/png;base64,")
     assert result["transforms"] == ["thumbnail", "grayscale", "sepia"]
-    assert len(result["outputs"]) == 3
-    assert result["outputs"][0]["image_data_url"].startswith("data:image/png;base64,")
+    assert [output["key"] for output in result["outputs"]] == ["thumbnail", "grayscale", "sepia"]
     assert updated.status == TaskStatus.COMPLETED
+
+
+def test_process_image_task_marks_failure_for_invalid_payload(monkeypatch, fake_redis):
+    store = TaskStore(fake_redis)  # type: ignore[arg-type]
+    task = TaskRecord(
+        task_type=TaskType.IMAGE_PROCESSING,
+        payload={
+            "filename": "broken.png",
+            "image_data_url": "data:text/plain;base64,QUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVo=",
+        },
+    )
+    store.save(task)
+
+    monkeypatch.setattr(
+        "task_system_common.tasks.get_redis_connection",
+        lambda _settings: fake_redis,
+    )
+
+    try:
+        process_task(task.id, task.task_type, task.payload)
+    except Exception as exc:
+        assert "image MIME type" in str(exc)
+    else:
+        raise AssertionError("process_task should fail for invalid image payloads")
+
+    updated = store.get(task.id)
+    assert updated.status == TaskStatus.FAILED
+    assert updated.error is not None
