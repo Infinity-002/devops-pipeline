@@ -13,7 +13,7 @@ The demo focuses on two realistic background workloads: image processing and CSV
 
 ## Architecture
 
-1. The web app submits a task to the API.
+1. The web app submits a task to the API
 2. The API validates the request, stores task metadata in Redis, and enqueues a background job.
 3. The worker service consumes the job from Redis and processes it independently.
 4. The worker updates task status and result in Redis.
