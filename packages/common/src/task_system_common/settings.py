@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:5173"
     rq_queue_name: str = "tasks"
     rq_worker_burst: bool = False
+    task_processing_delay_seconds: float = 0.0
 
     @field_validator("cors_origins")
     @classmethod
@@ -27,4 +28,3 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
-

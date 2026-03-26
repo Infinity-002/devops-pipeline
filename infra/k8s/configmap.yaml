@@ -7,4 +7,4 @@ data:
   REDIS_URL: redis://redis:6379/0
   CORS_ORIGINS: http://localhost:5173
   RQ_QUEUE_NAME: tasks
-
+  TASK_PROCESSING_DELAY_SECONDS: "0"

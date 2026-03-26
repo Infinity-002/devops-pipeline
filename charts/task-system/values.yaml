@@ -37,3 +37,4 @@ config:
   redisUrl: redis://redis:6379/0
   corsOrigins: http://localhost:5173
   rqQueueName: tasks
+  taskProcessingDelaySeconds: "0"

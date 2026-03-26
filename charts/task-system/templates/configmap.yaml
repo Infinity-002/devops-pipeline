@@ -7,4 +7,4 @@ data:
   REDIS_URL: {{ .Values.config.redisUrl | quote }}
   CORS_ORIGINS: {{ .Values.config.corsOrigins | quote }}
   RQ_QUEUE_NAME: {{ .Values.config.rqQueueName | quote }}
-
+  TASK_PROCESSING_DELAY_SECONDS: {{ .Values.config.taskProcessingDelaySeconds | quote }}

@@ -4,6 +4,7 @@ import base64
 import csv
 import io
 import logging
+import time
 from typing import Any
 
 from PIL import Image, ImageFilter, UnidentifiedImageError
@@ -31,6 +32,16 @@ def process_task(task_id: str, task_type: str, payload: dict[str, Any]) -> dict[
     store.update_status(task_id, TaskStatus.RUNNING)
 
     try:
+        if settings.task_processing_delay_seconds > 0:
+            logger.info(
+                "Applying demo processing delay",
+                extra={
+                    "task_id": task_id,
+                    "delay_seconds": settings.task_processing_delay_seconds,
+                },
+            )
+            time.sleep(settings.task_processing_delay_seconds)
+
         if task_type == TaskType.IMAGE_PROCESSING:
             data = ImagePayload.model_validate(payload)
             result = _process_image(data)
