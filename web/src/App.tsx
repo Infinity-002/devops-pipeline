@@ -27,32 +27,32 @@ const IMAGE_TRANSFORM_OPTIONS: Array<{
   label: string;
   help: string;
 }> = [
-  {
-    value: "thumbnail",
-    label: "Thumbnail",
-    help: "Generate a compact preview card.",
-  },
-  {
-    value: "grayscale",
-    label: "Grayscale",
-    help: "Highlight contrast and tone.",
-  },
-  {
-    value: "sepia",
-    label: "Sepia",
-    help: "Apply a warm archival treatment.",
-  },
-  {
-    value: "blur",
-    label: "Blur",
-    help: "Create a softened visual pass.",
-  },
-  {
-    value: "edge_enhance",
-    label: "Edge Enhance",
-    help: "Bring out edges and structure.",
-  },
-];
+    {
+      value: "thumbnail",
+      label: "Thumbnail",
+      help: "Generate a compact preview card.",
+    },
+    {
+      value: "grayscale",
+      label: "Grayscale",
+      help: "Highlight contrast and tone.",
+    },
+    {
+      value: "sepia",
+      label: "Sepia",
+      help: "Apply a warm archival treatment.",
+    },
+    {
+      value: "blur",
+      label: "Blur",
+      help: "Create a softened visual pass.",
+    },
+    {
+      value: "edge_enhance",
+      label: "Edge Enhance",
+      help: "Bring out edges and structure.",
+    },
+  ];
 
 const MAX_UPLOAD_BYTES = 8 * 1024 * 1024;
 const MAX_DIMENSION = 1600;
@@ -172,14 +172,14 @@ export function App() {
       const payload =
         taskType === "image_processing"
           ? {
-              filename: imageDraft?.filename ?? "",
-              image_data_url: imageDraft?.dataUrl ?? "",
-              transforms: selectedTransforms,
-            }
+            filename: imageDraft?.filename ?? "",
+            image_data_url: imageDraft?.dataUrl ?? "",
+            transforms: selectedTransforms,
+          }
           : {
-              filename: csvFilename,
-              csv_text: csvText,
-            };
+            filename: csvFilename,
+            csv_text: csvText,
+          };
 
       if (taskType === "image_processing" && !imageDraft) {
         throw new Error("Choose an image before starting the task.");

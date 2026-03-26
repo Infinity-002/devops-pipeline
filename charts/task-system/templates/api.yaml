@@ -48,3 +48,4 @@ spec:
   ports:
     - port: {{ .Values.api.service.port }}
       targetPort: 8000
+  type: {{ .Values.api.service.type }}
