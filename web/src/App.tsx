@@ -475,11 +475,10 @@ function ImageResultCard({ task }: { task: Task }) {
 
 function CsvResultCard({ result }: { result: CsvAnalysisResult }) {
   const numericEntries = Object.entries(result.numeric_summary);
-  const chartEntries = numericEntries
-    .map(([column, stats]) => ({ column, average: stats.average }))
-    .sort((a, b) => b.average - a.average)
-    .slice(0, 3);
-  const maxAverage = chartEntries.reduce((max, entry) => Math.max(max, entry.average), 0);
+  const chartEntries =
+    result.bar_chart?.columns?.slice(0, 3) ??
+    numericEntries.map(([column, stats]) => ({ column, value: stats.average })).slice(0, 3);
+  const maxValue = chartEntries.reduce((max, entry) => Math.max(max, entry.value), 0);
 
   return (
     <div className="csv-result-detail">
@@ -502,12 +501,12 @@ function CsvResultCard({ result }: { result: CsvAnalysisResult }) {
               <div className="section-title">Top 3 Column Averages</div>
               <div className="csv-bar-chart">
                 {chartEntries.map((entry) => {
-                  const widthPercent = maxAverage > 0 ? (entry.average / maxAverage) * 100 : 0;
+                  const widthPercent = maxValue > 0 ? (entry.value / maxValue) * 100 : 0;
                   return (
                     <div key={entry.column} className="csv-bar-row">
                       <div className="csv-bar-meta">
                         <span className="csv-bar-label">{entry.column}</span>
-                        <span className="csv-bar-value">{entry.average.toFixed(2)}</span>
+                        <span className="csv-bar-value">{entry.value.toFixed(2)}</span>
                       </div>
                       <div className="csv-bar-track">
                         <div className="csv-bar-fill" style={{ width: `${widthPercent}%` }} />

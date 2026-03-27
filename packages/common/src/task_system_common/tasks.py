@@ -150,6 +150,12 @@ def _analyze_csv(payload: CsvPayload) -> dict[str, Any]:
 
     sample_rows = rows[:5]
 
+    chart_columns = [
+        {"column": field, "value": numeric_summary[field]["average"]}
+        for field in fieldnames
+        if field in numeric_summary
+    ][:3]
+
     return {
         "filename": payload.filename,
         "row_count": len(rows),
@@ -157,6 +163,10 @@ def _analyze_csv(payload: CsvPayload) -> dict[str, Any]:
         "columns": fieldnames,
         "missing_values": missing_values,
         "numeric_summary": numeric_summary,
+        "bar_chart": {
+            "metric": "average",
+            "columns": chart_columns,
+        },
         "sample_rows": sample_rows,
     }
 

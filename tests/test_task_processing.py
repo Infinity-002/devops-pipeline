@@ -43,6 +43,8 @@ def test_process_task_updates_status(monkeypatch, fake_redis):
     assert result["row_count"] == 3
     assert result["column_count"] == 2
     assert result["numeric_summary"]["amount"]["average"] == 15.0
+    assert result["bar_chart"]["metric"] == "average"
+    assert result["bar_chart"]["columns"] == [{"column": "amount", "value": 15.0}]
     assert updated.status == TaskStatus.COMPLETED
     assert updated.result == result
 
