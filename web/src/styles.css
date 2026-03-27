@@ -579,6 +579,99 @@ button[type="submit"]:disabled {
   word-break: break-word;
 }
 
+.csv-grouped-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.csv-legend-item {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #f4f7fb;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.csv-grouped-chart {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 14px;
+  align-items: end;
+  margin-bottom: 18px;
+}
+
+.csv-grouped-group {
+  display: grid;
+  gap: 8px;
+}
+
+.csv-grouped-bars {
+  height: 210px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.06);
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  align-items: end;
+  padding: 8px;
+}
+
+.csv-grouped-bar-item {
+  display: grid;
+  gap: 6px;
+  align-items: end;
+}
+
+.csv-grouped-value {
+  font-size: 0.7rem;
+  color: var(--text-soft);
+  text-align: center;
+  line-height: 1;
+}
+
+.csv-grouped-track {
+  height: 170px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  display: flex;
+  align-items: flex-end;
+  overflow: hidden;
+}
+
+.csv-grouped-fill {
+  width: 100%;
+  min-height: 4px;
+  border-radius: 10px 10px 6px 6px;
+}
+
+.series-a {
+  background: linear-gradient(180deg, #7ce7a2, #4bbf7c);
+}
+
+.series-b {
+  background: linear-gradient(180deg, #8ec6ff, #4f87da);
+}
+
+.series-c {
+  background: linear-gradient(180deg, #ffcf93, #e78f39);
+}
+
+.series-d {
+  background: linear-gradient(180deg, #f2b4ff, #b867d9);
+}
+
+.csv-group-label {
+  text-align: center;
+  font-size: 0.82rem;
+  color: #e7edf6;
+}
+
 .result-item {
   padding: 16px;
   border-radius: 22px;
@@ -843,5 +936,21 @@ pre {
 
   .csv-bar-track {
     height: 150px;
+  }
+
+  .csv-grouped-chart {
+    grid-template-columns: repeat(auto-fit, minmax(98px, 1fr));
+    gap: 10px;
+  }
+
+  .csv-grouped-bars {
+    height: 170px;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 4px;
+    padding: 6px;
+  }
+
+  .csv-grouped-track {
+    height: 130px;
   }
 }

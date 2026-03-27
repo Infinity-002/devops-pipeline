@@ -497,6 +497,8 @@ function CsvResultCard({ result }: { result: CsvAnalysisResult }) {
       }, 0)
     : 0;
   const seriesColors = ["series-a", "series-b", "series-c", "series-d"];
+  const hasGroupedChart = groupedGroups.length > 0 && groupedSeries.length > 0;
+  const hasColumnChart = chartEntries.length > 0;
 
   return (
     <div className="csv-result-detail">
@@ -512,69 +514,69 @@ function CsvResultCard({ result }: { result: CsvAnalysisResult }) {
         </div>
       </div>
 
-      {numericEntries.length > 0 ? (
+      {hasGroupedChart ? (
         <>
-          {groupedChart && groupedGroups.length > 0 ? (
-            <>
-              <div className="section-title">Flower-wise Average Measurements</div>
-              <div className="csv-grouped-legend">
-                {groupedSeries.map((metric, index) => (
-                  <span key={metric} className={`csv-legend-item ${seriesColors[index % seriesColors.length]}`}>
-                    {metric}
-                  </span>
-                ))}
-              </div>
-              <div className="csv-grouped-chart">
-                {groupedGroups.map((group) => (
-                  <div key={group.flower} className="csv-grouped-group">
-                    <div className="csv-grouped-bars">
-                      {groupedSeries.map((metric, index) => {
-                        const value = group.averages[metric] ?? 0;
-                        const heightPercent = groupedMaxValue > 0 ? (value / groupedMaxValue) * 100 : 0;
-                        return (
-                          <div key={`${group.flower}-${metric}`} className="csv-grouped-bar-item">
-                            <span className="csv-grouped-value">{value.toFixed(2)}</span>
-                            <div className="csv-grouped-track">
-                              <div
-                                className={`csv-grouped-fill ${seriesColors[index % seriesColors.length]}`}
-                                style={{ height: `${heightPercent}%` }}
-                              />
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                    <span className="csv-group-label">{group.flower}</span>
-                  </div>
-                ))}
-              </div>
-            </>
-          ) : chartEntries.length > 0 ? (
-            <>
-              <div className="section-title">Top 3 Column Averages</div>
-              <div className="csv-bar-chart">
-                {chartEntries.map((entry) => {
-                  const heightPercent = maxValue > 0 ? (entry.value / maxValue) * 100 : 0;
-                  return (
-                    <div key={entry.column} className="csv-bar-column">
-                      <div className="csv-bar-head">
-                        <span className="csv-bar-value">{entry.value.toFixed(2)}</span>
-                      </div>
-                      <div className="csv-bar-track">
-                        <div className="csv-bar-fill" style={{ height: `${heightPercent}%` }}>
-                          <span className="csv-bar-flower" aria-hidden="true">
-                            <span className="csv-flower-center" />
-                          </span>
+          <div className="section-title">Flower-wise Average Measurements</div>
+          <div className="csv-grouped-legend">
+            {groupedSeries.map((metric, index) => (
+              <span key={metric} className={`csv-legend-item ${seriesColors[index % seriesColors.length]}`}>
+                {metric}
+              </span>
+            ))}
+          </div>
+          <div className="csv-grouped-chart">
+            {groupedGroups.map((group) => (
+              <div key={group.flower} className="csv-grouped-group">
+                <div className="csv-grouped-bars">
+                  {groupedSeries.map((metric, index) => {
+                    const value = group.averages[metric] ?? 0;
+                    const heightPercent = groupedMaxValue > 0 ? (value / groupedMaxValue) * 100 : 0;
+                    return (
+                      <div key={`${group.flower}-${metric}`} className="csv-grouped-bar-item">
+                        <span className="csv-grouped-value">{value.toFixed(2)}</span>
+                        <div className="csv-grouped-track">
+                          <div
+                            className={`csv-grouped-fill ${seriesColors[index % seriesColors.length]}`}
+                            style={{ height: `${heightPercent}%` }}
+                          />
                         </div>
                       </div>
-                      <span className="csv-bar-label">{entry.column}</span>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
+                <span className="csv-group-label">{group.flower}</span>
               </div>
-            </>
-          ) : null}
+            ))}
+          </div>
+        </>
+      ) : hasColumnChart ? (
+        <>
+          <div className="section-title">Top 3 Column Averages</div>
+          <div className="csv-bar-chart">
+            {chartEntries.map((entry) => {
+              const heightPercent = maxValue > 0 ? (entry.value / maxValue) * 100 : 0;
+              return (
+                <div key={entry.column} className="csv-bar-column">
+                  <div className="csv-bar-head">
+                    <span className="csv-bar-value">{entry.value.toFixed(2)}</span>
+                  </div>
+                  <div className="csv-bar-track">
+                    <div className="csv-bar-fill" style={{ height: `${heightPercent}%` }}>
+                      <span className="csv-bar-flower" aria-hidden="true">
+                        <span className="csv-flower-center" />
+                      </span>
+                    </div>
+                  </div>
+                  <span className="csv-bar-label">{entry.column}</span>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      ) : null}
 
+      {numericEntries.length > 0 ? (
+        <>
           <div className="section-title">Numeric Summary</div>
           <div className="data-table-container">
             <table className="data-table">
