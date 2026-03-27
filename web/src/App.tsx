@@ -475,21 +475,6 @@ function ImageResultCard({ task }: { task: Task }) {
 
 function CsvResultCard({ result }: { result: CsvAnalysisResult }) {
   const numericEntries = Object.entries(result.numeric_summary);
-  const statsChartColumns = numericEntries.slice(0, 4).map(([column, stats]) => ({
-    column,
-    min: stats.min,
-    average: stats.average,
-    max: stats.max,
-  }));
-  const statsChartSeries: Array<{ key: "min" | "average" | "max"; label: string; color: string }> = [
-    { key: "min", label: "Min", color: "series-b" },
-    { key: "average", label: "Avg", color: "series-a" },
-    { key: "max", label: "Max", color: "series-c" },
-  ];
-  const statsChartMax = statsChartColumns.reduce(
-    (max, item) => Math.max(max, item.min, item.average, item.max),
-    0,
-  );
   const groupedChart =
     result.bar_chart?.kind === "grouped" &&
     Array.isArray(result.bar_chart.groups) &&
@@ -586,43 +571,6 @@ function CsvResultCard({ result }: { result: CsvAnalysisResult }) {
                 </div>
               );
             })}
-          </div>
-        </>
-      ) : null}
-
-      {statsChartColumns.length > 0 ? (
-        <>
-          <div className="section-title">Column Stats Graph (Min / Avg / Max)</div>
-          <div className="csv-grouped-legend">
-            {statsChartSeries.map((series) => (
-              <span key={series.key} className={`csv-legend-item ${series.color}`}>
-                {series.label}
-              </span>
-            ))}
-          </div>
-          <div className="csv-grouped-chart">
-            {statsChartColumns.map((item) => (
-              <div key={item.column} className="csv-grouped-group">
-                <div className="csv-grouped-bars">
-                  {statsChartSeries.map((series) => {
-                    const value = item[series.key];
-                    const heightPercent = statsChartMax > 0 ? (value / statsChartMax) * 100 : 0;
-                    return (
-                      <div key={`${item.column}-${series.key}`} className="csv-grouped-bar-item">
-                        <span className="csv-grouped-value">{value.toFixed(2)}</span>
-                        <div className="csv-grouped-track">
-                          <div
-                            className={`csv-grouped-fill ${series.color}`}
-                            style={{ height: `${heightPercent}%` }}
-                          />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-                <span className="csv-group-label">{item.column}</span>
-              </div>
-            ))}
           </div>
         </>
       ) : null}
