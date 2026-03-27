@@ -49,8 +49,12 @@ export interface CsvAnalysisResult {
   columns: string[];
   numeric_summary: Record<string, { count: number; min: number; max: number; average: number }>;
   bar_chart?: {
+    kind?: "grouped" | "columns";
     metric: "average";
-    columns: Array<{ column: string; value: number }>;
+    columns?: Array<{ column: string; value: number }>;
+    x_axis?: string;
+    series?: string[];
+    groups?: Array<{ flower: string; averages: Record<string, number> }>;
   };
   sample_rows: Array<Record<string, unknown>>;
 }

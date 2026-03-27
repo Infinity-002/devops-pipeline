@@ -475,10 +475,28 @@ function ImageResultCard({ task }: { task: Task }) {
 
 function CsvResultCard({ result }: { result: CsvAnalysisResult }) {
   const numericEntries = Object.entries(result.numeric_summary);
+  const groupedChart =
+    result.bar_chart?.kind === "grouped" &&
+    Array.isArray(result.bar_chart.groups) &&
+    Array.isArray(result.bar_chart.series)
+      ? result.bar_chart
+      : null;
   const chartEntries =
     result.bar_chart?.columns?.slice(0, 3) ??
     numericEntries.map(([column, stats]) => ({ column, value: stats.average })).slice(0, 3);
   const maxValue = chartEntries.reduce((max, entry) => Math.max(max, entry.value), 0);
+  const groupedGroups = groupedChart?.groups ?? [];
+  const groupedSeries = groupedChart?.series ?? [];
+  const groupedMaxValue = groupedChart
+    ? groupedGroups.reduce((max, group) => {
+        const groupMax = groupedSeries.reduce(
+          (seriesMax, metric) => Math.max(seriesMax, group.averages[metric] ?? 0),
+          0,
+        );
+        return Math.max(max, groupMax);
+      }, 0)
+    : 0;
+  const seriesColors = ["series-a", "series-b", "series-c", "series-d"];
 
   return (
     <div className="csv-result-detail">
@@ -496,7 +514,42 @@ function CsvResultCard({ result }: { result: CsvAnalysisResult }) {
 
       {numericEntries.length > 0 ? (
         <>
-          {chartEntries.length > 0 ? (
+          {groupedChart && groupedGroups.length > 0 ? (
+            <>
+              <div className="section-title">Flower-wise Average Measurements</div>
+              <div className="csv-grouped-legend">
+                {groupedSeries.map((metric, index) => (
+                  <span key={metric} className={`csv-legend-item ${seriesColors[index % seriesColors.length]}`}>
+                    {metric}
+                  </span>
+                ))}
+              </div>
+              <div className="csv-grouped-chart">
+                {groupedGroups.map((group) => (
+                  <div key={group.flower} className="csv-grouped-group">
+                    <div className="csv-grouped-bars">
+                      {groupedSeries.map((metric, index) => {
+                        const value = group.averages[metric] ?? 0;
+                        const heightPercent = groupedMaxValue > 0 ? (value / groupedMaxValue) * 100 : 0;
+                        return (
+                          <div key={`${group.flower}-${metric}`} className="csv-grouped-bar-item">
+                            <span className="csv-grouped-value">{value.toFixed(2)}</span>
+                            <div className="csv-grouped-track">
+                              <div
+                                className={`csv-grouped-fill ${seriesColors[index % seriesColors.length]}`}
+                                style={{ height: `${heightPercent}%` }}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <span className="csv-group-label">{group.flower}</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : chartEntries.length > 0 ? (
             <>
               <div className="section-title">Top 3 Column Averages</div>
               <div className="csv-bar-chart">

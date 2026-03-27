@@ -150,11 +150,17 @@ def _analyze_csv(payload: CsvPayload) -> dict[str, Any]:
 
     sample_rows = rows[:5]
 
+    grouped_chart = _build_grouped_species_chart(rows, fieldnames, numeric_summary)
     chart_columns = [
         {"column": field, "value": numeric_summary[field]["average"]}
         for field in fieldnames
         if field in numeric_summary
     ][:3]
+    fallback_chart = {
+        "kind": "columns",
+        "metric": "average",
+        "columns": chart_columns,
+    }
 
     return {
         "filename": payload.filename,
@@ -163,13 +169,59 @@ def _analyze_csv(payload: CsvPayload) -> dict[str, Any]:
         "columns": fieldnames,
         "missing_values": missing_values,
         "numeric_summary": numeric_summary,
-        "bar_chart": {
-            "metric": "average",
-            "columns": chart_columns,
-        },
+        "bar_chart": grouped_chart or fallback_chart,
         "sample_rows": sample_rows,
     }
+def _build_grouped_species_chart(
+    rows: list[dict[str, str]],
+    fieldnames: list[str],
+    numeric_summary: dict[str, dict[str, float | int]],
+) -> dict[str, Any] | None:
+    normalized_fields = {field.casefold(): field for field in fieldnames}
+    group_field = normalized_fields.get("species")
+    if not group_field:
+        return None
 
+    series = [field for field in fieldnames if field in numeric_summary][:4]
+    if not series:
+        return None
+
+    grouped_values: dict[str, dict[str, list[float]]] = {}
+    for row in rows:
+        flower_name = (row.get(group_field) or "").strip()
+        if not flower_name:
+            continue
+
+        metrics = grouped_values.setdefault(flower_name, {name: [] for name in series})
+        for metric in series:
+            raw_value = (row.get(metric) or "").strip()
+            if not raw_value:
+                continue
+            try:
+                metrics[metric].append(float(raw_value))
+            except ValueError:
+                continue
+
+    groups = []
+    for flower_name, metrics in grouped_values.items():
+        averages = {
+            metric: round(sum(values) / len(values), 2)
+            for metric, values in metrics.items()
+            if values
+        }
+        if averages:
+            groups.append({"flower": flower_name, "averages": averages})
+
+    if not groups:
+        return None
+
+    return {
+        "kind": "grouped",
+        "metric": "average",
+        "x_axis": group_field,
+        "series": series,
+        "groups": groups,
+    }
 
 
 def _image_to_data_url(image: Image.Image) -> str:

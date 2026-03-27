@@ -43,10 +43,65 @@ def test_process_task_updates_status(monkeypatch, fake_redis):
     assert result["row_count"] == 3
     assert result["column_count"] == 2
     assert result["numeric_summary"]["amount"]["average"] == 15.0
+    assert result["bar_chart"]["kind"] == "columns"
     assert result["bar_chart"]["metric"] == "average"
     assert result["bar_chart"]["columns"] == [{"column": "amount", "value": 15.0}]
     assert updated.status == TaskStatus.COMPLETED
     assert updated.result == result
+
+
+def test_process_iris_csv_groups_bar_chart_by_species(monkeypatch, fake_redis):
+    store = TaskStore(fake_redis)  # type: ignore[arg-type]
+    task = TaskRecord(
+        task_type=TaskType.CSV_ANALYSIS,
+        payload={
+            "filename": "iris.csv",
+            "csv_text": (
+                "sepal_length,sepal_width,petal_length,petal_width,species\n"
+                "5.1,3.5,1.4,0.2,setosa\n"
+                "4.9,3.0,1.4,0.2,setosa\n"
+                "7.0,3.2,4.7,1.4,versicolor\n"
+                "6.4,3.2,4.5,1.5,versicolor\n"
+            ),
+        },
+    )
+    store.save(task)
+
+    monkeypatch.setattr(
+        "task_system_common.tasks.get_redis_connection",
+        lambda _settings: fake_redis,
+    )
+
+    result = process_task(task.id, task.task_type, task.payload)
+
+    assert result["bar_chart"]["kind"] == "grouped"
+    assert result["bar_chart"]["x_axis"] == "species"
+    assert result["bar_chart"]["series"] == [
+        "sepal_length",
+        "sepal_width",
+        "petal_length",
+        "petal_width",
+    ]
+    assert result["bar_chart"]["groups"] == [
+        {
+            "flower": "setosa",
+            "averages": {
+                "sepal_length": 5.0,
+                "sepal_width": 3.25,
+                "petal_length": 1.4,
+                "petal_width": 0.2,
+            },
+        },
+        {
+            "flower": "versicolor",
+            "averages": {
+                "sepal_length": 6.7,
+                "sepal_width": 3.2,
+                "petal_length": 4.6,
+                "petal_width": 1.45,
+            },
+        },
+    ]
 
 
 def test_process_image_task(monkeypatch, fake_redis):
