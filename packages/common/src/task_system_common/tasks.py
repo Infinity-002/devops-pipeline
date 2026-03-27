@@ -161,6 +161,7 @@ def _analyze_csv(payload: CsvPayload) -> dict[str, Any]:
     }
 
 
+
 def _image_to_data_url(image: Image.Image) -> str:
     buffer = io.BytesIO()
     image.save(buffer, format="PNG")

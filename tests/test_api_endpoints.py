@@ -1,4 +1,4 @@
-from __future__ import annotations
+xfrom __future__ import annotations
 
 from api_service.dependencies import get_redis, get_task_queue
 from api_service.main import app

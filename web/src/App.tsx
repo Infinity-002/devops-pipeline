@@ -474,6 +474,13 @@ function ImageResultCard({ task }: { task: Task }) {
 }
 
 function CsvResultCard({ result }: { result: CsvAnalysisResult }) {
+  const numericEntries = Object.entries(result.numeric_summary);
+  const chartEntries = numericEntries
+    .map(([column, stats]) => ({ column, average: stats.average }))
+    .sort((a, b) => b.average - a.average)
+    .slice(0, 3);
+  const maxAverage = chartEntries.reduce((max, entry) => Math.max(max, entry.average), 0);
+
   return (
     <div className="csv-result-detail">
       <div className="section-title">Dataset Overview</div>
@@ -488,8 +495,30 @@ function CsvResultCard({ result }: { result: CsvAnalysisResult }) {
         </div>
       </div>
 
-      {Object.keys(result.numeric_summary).length > 0 ? (
+      {numericEntries.length > 0 ? (
         <>
+          {chartEntries.length > 0 ? (
+            <>
+              <div className="section-title">Top 3 Column Averages</div>
+              <div className="csv-bar-chart">
+                {chartEntries.map((entry) => {
+                  const widthPercent = maxAverage > 0 ? (entry.average / maxAverage) * 100 : 0;
+                  return (
+                    <div key={entry.column} className="csv-bar-row">
+                      <div className="csv-bar-meta">
+                        <span className="csv-bar-label">{entry.column}</span>
+                        <span className="csv-bar-value">{entry.average.toFixed(2)}</span>
+                      </div>
+                      <div className="csv-bar-track">
+                        <div className="csv-bar-fill" style={{ width: `${widthPercent}%` }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          ) : null}
+
           <div className="section-title">Numeric Summary</div>
           <div className="data-table-container">
             <table className="data-table">
@@ -502,7 +531,7 @@ function CsvResultCard({ result }: { result: CsvAnalysisResult }) {
                 </tr>
               </thead>
               <tbody>
-                {Object.entries(result.numeric_summary).map(([column, stats]) => (
+                {numericEntries.map(([column, stats]) => (
                   <tr key={column}>
                     <td>{column}</td>
                     <td>{stats.min}</td>

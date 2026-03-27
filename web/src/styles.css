@@ -493,6 +493,50 @@ button[type="submit"]:disabled {
   width: 100%;
 }
 
+.csv-bar-chart {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.csv-bar-row {
+  display: grid;
+  gap: 8px;
+}
+
+.csv-bar-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.csv-bar-label {
+  font-size: 0.86rem;
+  color: #e7edf6;
+}
+
+.csv-bar-value {
+  font-size: 0.82rem;
+  color: var(--text-soft);
+  font-weight: 700;
+}
+
+.csv-bar-track {
+  width: 100%;
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.csv-bar-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #6be08d, #28b5ff);
+}
+
 .result-item {
   padding: 16px;
   border-radius: 22px;
