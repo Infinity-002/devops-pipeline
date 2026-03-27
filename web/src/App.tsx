@@ -501,16 +501,20 @@ function CsvResultCard({ result }: { result: CsvAnalysisResult }) {
               <div className="section-title">Top 3 Column Averages</div>
               <div className="csv-bar-chart">
                 {chartEntries.map((entry) => {
-                  const widthPercent = maxValue > 0 ? (entry.value / maxValue) * 100 : 0;
+                  const heightPercent = maxValue > 0 ? (entry.value / maxValue) * 100 : 0;
                   return (
-                    <div key={entry.column} className="csv-bar-row">
-                      <div className="csv-bar-meta">
-                        <span className="csv-bar-label">{entry.column}</span>
+                    <div key={entry.column} className="csv-bar-column">
+                      <div className="csv-bar-head">
                         <span className="csv-bar-value">{entry.value.toFixed(2)}</span>
                       </div>
                       <div className="csv-bar-track">
-                        <div className="csv-bar-fill" style={{ width: `${widthPercent}%` }} />
+                        <div className="csv-bar-fill" style={{ height: `${heightPercent}%` }}>
+                          <span className="csv-bar-flower" aria-hidden="true">
+                            <span className="csv-flower-center" />
+                          </span>
+                        </div>
                       </div>
+                      <span className="csv-bar-label">{entry.column}</span>
                     </div>
                   );
                 })}
